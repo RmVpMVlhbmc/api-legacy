@@ -1,0 +1,17 @@
+{
+  "author": "Fei Yang <me@feiyang.moe>",
+  "license": "AGPL-3.0-only",
+  "name": "feiyang-api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@koa/router": "^10.1.1",
+    "koa": "^2.13.1",
+    "node-fetch": "^3.0.0",
+    "serverless-http": "^2.7.0"
+  },
+  "scripts": {
+    "build": "netlify functions:build -s src"
+  }
+}
