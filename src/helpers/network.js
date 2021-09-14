@@ -33,4 +33,11 @@ const fetchInit = {
     }
 }
 
-export { fetchX, fetchInit }
+function getIP(ctx) {
+    var ip = ctx.request.header['cf-connecting-ip'] || ctx.request.header['x-nf-client-connection-ip'] || ctx.request.header['x-forwarded-for'] || req.socket.remoteAddress
+    if (ip != null) {
+        return ip
+    }
+    throw new Error('Unable to get client IP.')
+}
+export { fetchX, fetchInit, getIP }
