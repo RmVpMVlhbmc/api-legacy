@@ -1,12 +1,12 @@
 import { fetchX, fetchInit } from './network.js'
 
 const videoRegex = /var ytInitialPlayerResponse = ({.+});(?:<\/script><div id="player"|var meta)/
-const videoErrors = { "Video is unavailable.": '"status":"ERROR","reason":"Video unavailable"', "Login is required.": '"status":"LOGIN_REQUIRED","reason":"Sign in to confirm your age"' }
 const videoUselessParts = ['adPlacements', 'annotations', 'attestation', 'cards', 'endscreen', 'frameworkUpdates', 'messages', 'microformat', 'playabilityStatus', 'playbackTracking', 'playerAds', 'playerConfig', 'responseContext', 'storyboards', 'trackingParams', 'videoQualityPromoSupportedRenderers']
 const playerRegex = /src="(\/s\/player\/[^"]+\/player_ias\.vflset\/[^"]+\/base\.js)"/
 const playerEntryRegex = /function\(a\){(a=a\.split\(""\);(\w+).+;return a\.join\(""\))}/
 const playerHelperExtraRegex = /([a-zA-Z0-9"]+):function\(((?:a|a,b))\){([a-zA-Z0-9.,()\[\]=%; ]+)}/
 const searchRegex = /var ytInitialData = (.+);<\/script><script/
+const URLRegex = /https?:\/\/\w+(?:\.\w+)+\/(?:watch|playlist)\?(\w+)=([a-zA-Z0-9-_]+)/
 
 class Decryptor {
     constructor(entry, helperName, helperContent) {
@@ -43,12 +43,14 @@ async function fetchVideo(id) {
     var res = await fetchX(`https://www.youtube.com/watch?v=${id}`, fetchInit)
     res = await res.text()
     //YouTube doesn't return 403/404 when videos are unplayable.
-    for (var [msg, err] of Object.entries(videoErrors)) {
-        if (res.includes(err)) {
-            throw new Error(msg)
-        }
+    try {
+        var data = JSON.parse(res.match(videoRegex)[1])
+    } catch (e) {
+        throw new Error('Unable to parse video data')
     }
-    let data = JSON.parse(res.match(videoRegex)[1])
+    if (data['playabilityStatus']['status'] != 'OK') {
+        throw new Error(`Upstream error: ${data['playabilityStatus']['reason']}`)
+    }
 
     videoUselessParts.forEach(i => {
         var info = i.split('/')
@@ -73,25 +75,35 @@ async function fetchVideo(id) {
     return data
 }
 
-function getStream(data, fmts) {
-    if (isNaN(fmts) != true) {
-        fmts = [fmts]
+function getStream(data, itags, preferAdaptive = true) {
+    if (isNaN(itags) != true) {
+        itags = [itags]
     }
-    for (var i of fmts) {
-        for (var t of ['adaptiveFormats', 'formats']) {
-            var fmt = data['streamingData'][t].find(f => f['itag'] == i)
-            if (fmt != null) {
-                return fmt
+    if (preferAdaptive == true) {
+        var types = ['adaptiveFormats', 'formats']
+    } else {
+        var types = ['formats', 'adaptiveFormats']
+    }
+
+    for (var i of itags) {
+        for (var t of types) {
+            var stream = data['streamingData'][t].find(s => s['itag'] == i)
+            if (stream != null) {
+                return stream
             }
         }
     }
-    throw new Error('Unable to get specific format')
+    throw new Error('Unable to get the specific stream format')
 }
 
 async function searchChannels(query) {
     var res = await fetchX(`https://www.youtube.com/results?search_query=${query}&sp=EgIQAg%253D%253D`, fetchInit)
     res = await res.text()
-    let rd = JSON.parse(res.match(searchRegex)[1])
+    try {
+        var rd = JSON.parse(res.match(searchRegex)[1])
+    } catch (e) {
+        throw new Error('Unable to parse search results')
+    }
 
     let data = []
     for (var i = 0; i < rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'].length; i++) {
@@ -115,7 +127,11 @@ async function searchChannels(query) {
 async function searchVideos(query) {
     var res = await fetchX(`https://www.youtube.com/results?search_query=${query}&sp=EgIQAQ%253D%253D`, fetchInit)
     res = await res.text()
-    let rd = JSON.parse(res.match(searchRegex)[1])
+    try {
+        var rd = JSON.parse(res.match(searchRegex)[1])
+    } catch (e) {
+        throw new Error('Unable to parse search results')
+    }
 
     let data = []
     for (var i = 0; i < rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'].length; i++) {
@@ -141,7 +157,7 @@ async function searchVideos(query) {
 }
 
 function testUrl(url) {
-    const data = url.match(/https?:\/\/\w+(?:\.\w+)+\/(?:watch|playlist)\?(\w+)=([a-zA-Z0-9-_]+)/)
+    const data = url.match(URLRegex)
     if (data[1] != null && data[2] != null) {
         return [data[1], data[2]]
     }
