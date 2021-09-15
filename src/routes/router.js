@@ -6,9 +6,9 @@ import { stream } from './youtube/stream.js'
 
 const router = new Router()
 
+router.all('/', index)
 router.all('/dump', dump)
 router.all('/dump/:type', dump)
-router.get('/', index)
 router.get('/youtube/audio', stream)
 router.get('/youtube/video', stream)
 router.get('/youtube/search/:type', search)

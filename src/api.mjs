@@ -9,7 +9,6 @@ if (process.env.DEVELOPMENT == 'true') {
 }
 
 import serverless from 'serverless-http'
-
 const handler = serverless(app)
 
 export { app as default, handler }

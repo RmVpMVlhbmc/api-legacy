@@ -40,4 +40,5 @@ function getIP(ctx) {
     }
     throw new Error('Unable to get client IP.')
 }
+
 export { fetchX, fetchInit, getIP }
