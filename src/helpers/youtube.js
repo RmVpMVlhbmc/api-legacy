@@ -6,6 +6,7 @@ const videoUselessParts = ['adPlacements', 'annotations', 'attestation', 'cards'
 const playerRegex = /src="(\/s\/player\/[^"]+\/player_ias\.vflset\/[^"]+\/base\.js)"/
 const playerEntryRegex = /function\(a\){(a=a\.split\(""\);(\w+).+;return a\.join\(""\))}/
 const playerHelperExtraRegex = /([a-zA-Z0-9"]+):function\(((?:a|a,b))\){([a-zA-Z0-9.,()\[\]=%; ]+)}/
+const searchRegex = /var ytInitialData = (.+);<\/script><script/
 
 class Decryptor {
     constructor(entry, helperName, helperContent) {
@@ -17,6 +18,25 @@ class Decryptor {
         }
         delete this.i; delete this.hnr
     }
+}
+
+async function fetchDecryptData(data) {
+    var data = await fetchX(`https://www.youtube.com/${data.match(playerRegex)[1]}`)
+    data = await data.text()
+    try {
+        var entry = data.match(playerEntryRegex).splice(1, 2)
+    } catch (e) {
+        throw new Error('Unable to fetch entry decryption function.')
+    }
+
+    //construct regex with function name from entrypoint
+    const playerHelperRegex = new RegExp(`(var ${entry[1]}={([a-zA-Z0-9"]+:function\\((?:a|a,b)\\){.+}(?:,\\n)?)+)};`)
+    try {
+        var helper = data.match(playerHelperRegex)[1]
+    } catch (e) {
+        throw new Error('Unable to fetch helper decryption function.')
+    }
+    return [entry[0], entry[1], helper]
 }
 
 async function fetchVideo(id) {
@@ -53,25 +73,6 @@ async function fetchVideo(id) {
     return data
 }
 
-async function fetchDecryptData(data) {
-    var data = await fetchX(`https://www.youtube.com/${data.match(playerRegex)[1]}`)
-    data = await data.text()
-    try {
-        var entry = data.match(playerEntryRegex).splice(1, 2)
-    } catch (e) {
-        throw new Error('Unable to fetch entry decryption function.')
-    }
-
-    //construct regex with function name from entrypoint
-    const playerHelperRegex = new RegExp(`(var ${entry[1]}={([a-zA-Z0-9"]+:function\\((?:a|a,b)\\){.+}(?:,\\n)?)+)};`)
-    try {
-        var helper = data.match(playerHelperRegex)[1]
-    } catch (e) {
-        throw new Error('Unable to fetch helper decryption function.')
-    }
-    return [entry[0], entry[1], helper]
-}
-
 function getStream(data, fmts) {
     if (isNaN(fmts) != true) {
         fmts = [fmts]
@@ -87,6 +88,58 @@ function getStream(data, fmts) {
     throw new Error('Unable to get specific format')
 }
 
+async function searchChannels(query) {
+    var res = await fetchX(`https://www.youtube.com/results?search_query=${query}&sp=EgIQAg%253D%253D`, fetchInit)
+    res = await res.text()
+    let rd = JSON.parse(res.match(searchRegex)[1])
+
+    let data = []
+    for (var i = 0; i < rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'].length; i++) {
+        //Subscriber count could be hidden
+        try {
+            var subscriberCount = rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['channelRenderer']['subscriberCountText']['simpleText']
+        } catch (e) {
+            var subscriberCount = '0 subscriber'
+        }
+        data.push({
+            id: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['channelRenderer']['channelId'],
+            subscriberCount: subscriberCount,
+            title: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['channelRenderer']['title']['simpleText'],
+            thumbnails: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['channelRenderer']['thumbnail']['thumbnails'],
+        })
+    }
+    return data
+
+}
+
+async function searchVideos(query) {
+    var res = await fetchX(`https://www.youtube.com/results?search_query=${query}&sp=EgIQAQ%253D%253D`, fetchInit)
+    res = await res.text()
+    let rd = JSON.parse(res.match(searchRegex)[1])
+
+    let data = []
+    for (var i = 0; i < rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'].length; i++) {
+        //Views could be hidden
+        try {
+            var views = rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['viewCountText']['simpleText']
+        } catch (e) {
+            var views = '0 view'
+        }
+        data.push({
+            id: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['videoId'],
+            length: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['lengthText']['simpleText'],
+            publishedTime: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['publishedTimeText']['simpleText'],
+            thumbnails: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['thumbnail']['thumbnails'],
+            title: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['title']['runs'][0]['text'],
+            views: views,
+            channelId: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['ownerText']['runs'][0]['navigationEndpoint']['browseEndpoint']['browseId'],
+            channelTitle: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['ownerText']['runs'][0]['text'],
+            channelThumbnails: rd['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][i]['videoRenderer']['channelThumbnailSupportedRenderers']['channelThumbnailWithLinkRenderer']['thumbnail']['thumbnails']
+        })
+    }
+    return data
+}
+
 function testUrl(url) {
     const data = url.match(/https?:\/\/\w+(?:\.\w+)+\/(?:watch|playlist)\?(\w+)=([a-zA-Z0-9-_]+)/)
     if (data[1] != null && data[2] != null) {
@@ -95,4 +148,4 @@ function testUrl(url) {
     throw new Error('Invalid YouTube url.')
 }
 
-export { fetchVideo, fetchDecryptData, getStream, testUrl }
+export { fetchDecryptData, fetchVideo, getStream, searchChannels, searchVideos, testUrl }
