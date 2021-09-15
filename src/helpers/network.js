@@ -1,5 +1,11 @@
 import fetch from 'node-fetch'
 
+/**
+ * Fetch http resources and throw errors when get 4xx/5xx responses
+ * @param {string} url Request URL
+ * @param {object} init Init options, documentation: https://github.com/node-fetch/node-fetch#options
+ * @returns {Promose} Response
+ */
 function fetchX(url, init) {
     return new Promise((resolve, reject) => {
         fetch(url, init).then(
@@ -33,6 +39,11 @@ const fetchInit = {
     }
 }
 
+/**
+ * Get client IP from Koajs request context
+ * @param {object} ctx Koajs context
+ * @returns {string} Client IP
+ */
 function getIP(ctx) {
     var ip = ctx.request.header['cf-connecting-ip'] || ctx.request.header['x-nf-client-connection-ip'] || ctx.request.header['x-forwarded-for'] || req.socket.remoteAddress
     if (ip != null) {

@@ -8,7 +8,14 @@ const playerHelperExtraRegex = /([a-zA-Z0-9"]+):function\(((?:a|a,b))\){([a-zA-Z
 const searchRegex = /var ytInitialData = (.+);<\/script><script/
 const URLRegex = /https?:\/\/\w+(?:\.\w+)+\/(?:watch|playlist)\?(\w+)=([a-zA-Z0-9-_]+)/
 
+/** YouTube's signatureCipher decryptor. */
 class Decryptor {
+    /**
+     * Create a decryptor
+     * @param {string} entry entry function
+     * @param {string} helperName name of helper function
+     * @param {string} helperContent content of helper function
+     */
     constructor(entry, helperName, helperContent) {
         this.hnr = new RegExp(helperName, 'g')
         this.decrypt = Function('a', entry.replace(this.hnr, 'this'))
@@ -20,6 +27,11 @@ class Decryptor {
     }
 }
 
+/**
+ * Fetch functions to decrypt YouTube's signatureCipher
+ * @param {string} data Correspond YouTube video page
+ * @returns {Array} Entry function, name of helper function, helper function
+ */
 async function fetchDecryptData(data) {
     var data = await fetchX(`https://www.youtube.com/${data.match(playerRegex)[1]}`)
     data = await data.text()
@@ -39,6 +51,11 @@ async function fetchDecryptData(data) {
     return [entry[0], entry[1], helper]
 }
 
+/**
+ * Fetch YouTube video data
+ * @param {string} id YouTube video id
+ * @returns Video data
+ */
 async function fetchVideo(id) {
     var res = await fetchX(`https://www.youtube.com/watch?v=${id}`, fetchInit)
     res = await res.text()
@@ -75,6 +92,13 @@ async function fetchVideo(id) {
     return data
 }
 
+/**
+ * Get YouTube video stream by itags
+ * @param {object} data YouTube video data
+ * @param {(array|number)} itags Itag(s) for requested stream
+ * @param {boolean} preferAdaptive Prefer adaptive format or not
+ * @returns {object} Video stream
+ */
 function getStream(data, itags, preferAdaptive = true) {
     if (isNaN(itags) != true) {
         itags = [itags]
@@ -96,6 +120,11 @@ function getStream(data, itags, preferAdaptive = true) {
     throw new Error('Unable to get the specific stream format')
 }
 
+/**
+ * Search YouTube channels
+ * @param {string} query Search query
+ * @returns {Array} Search results
+ */
 async function searchChannels(query) {
     var res = await fetchX(`https://www.youtube.com/results?search_query=${query}&sp=EgIQAg%253D%253D`, fetchInit)
     res = await res.text()
@@ -124,6 +153,11 @@ async function searchChannels(query) {
 
 }
 
+/**
+ * Search YouTube videos
+ * @param {string} query Search query
+ * @returns {Array} Search results
+ */
 async function searchVideos(query) {
     var res = await fetchX(`https://www.youtube.com/results?search_query=${query}&sp=EgIQAQ%253D%253D`, fetchInit)
     res = await res.text()
@@ -156,6 +190,11 @@ async function searchVideos(query) {
     return data
 }
 
+/**
+ * Validate possible YouTube URLs 
+ * @param {string} url URL that need to be validated
+ * @returns {Array} URL type and query data (playlist/video id etc.)
+ */
 function testUrl(url) {
     const data = url.match(URLRegex)
     if (data[1] != null && data[2] != null) {
