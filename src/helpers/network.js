@@ -45,7 +45,7 @@ const fetchInit = {
  * @returns {string} Client IP
  */
 function getIP(ctx) {
-    var ip = ctx.request.header['cf-connecting-ip'] || ctx.request.header['x-nf-client-connection-ip'] || ctx.request.header['x-forwarded-for'] || req.socket.remoteAddress
+    var ip = ctx.request.header['cf-connecting-ip'] || ctx.request.header['x-nf-client-connection-ip'] || ctx.request.header['x-forwarded-for'] || ctx.socket.remoteAddress
     if (ip != null) {
         return ip
     }

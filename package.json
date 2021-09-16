@@ -9,6 +9,7 @@
     "@koa/router": "^10.1.1",
     "koa": "^2.13.1",
     "node-fetch": "^3.0.0",
+    "raw-body": "^2.4.1",
     "serverless-http": "^2.7.0"
   },
   "scripts": {
